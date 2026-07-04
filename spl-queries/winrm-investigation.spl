@@ -1,1 +1,33 @@
+# 1. Detect allowed WinRM traffic from IPs missing from the admin lookup
 
+index=firewall action=ALLOW dest_ip="192.168.56.101" dest_port=5985
+| lookup Admin_ip.csv Admin_ip AS src_ip OUTPUT Admin_ip AS approved_ip
+| where isnull(approved_ip)
+| stats count AS connection_count by src_ip dest_ip dest_port
+
+
+# 2. Review the firewall connection
+
+index=firewall 
+src_ip="192.168.56.102"
+dest_ip="192.168.56.101"
+dest_port=5985
+| table _time action src_ip src_port dest_ip dest_port
+
+
+# 3. Search for successful authentication from the source IP
+
+index=*  EventCode=4624 "192.168.56.102"
+| table _time Account_Name Logon_Type src-ip
+
+
+# 4. Search for the WinRM provider-host process
+
+index=sysmon  "wsmprovhost.exe"
+| table _time User Image ParentImage CommandLine
+
+
+# 5. Search for processes launched from the WinRM session
+
+index=sysmon  ParentImage="*\\wsmprovhost.exe"
+| table _time User Image ParentImage CommandLine
